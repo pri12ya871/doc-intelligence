@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: docint
+          POSTGRES_PASSWORD: docint
+          POSTGRES_DB: docint
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docint"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://docint:docint@localhost:5432/docint
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-secret-not-used-in-production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm install
+
+      - name: Apply schema
+        run: npm run migrate
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build image
+        run: docker build -t doc-intelligence:ci .
