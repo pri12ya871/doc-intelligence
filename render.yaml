@@ -1,10 +1,15 @@
 # One-click deployment blueprint for Render (free tier).
 #
-# The app runs in local mode here: embedded Postgres (PGlite) + in-memory
-# cache, so no database or Redis service is needed. The free instance's disk
-# is ephemeral — demo data resets on every deploy or restart, which suits a
-# public demo. For durable data, set DATABASE_URL (Neon) and REDIS_URL
-# (Upstash) as environment variables instead.
+# DATABASE_URL must point at a real Postgres with pgvector (Neon's free tier
+# works). The embedded-PGlite local mode is deliberately NOT used here: the
+# whole Postgres engine runs inside the Node process and idles at ~270MB,
+# which leaves no headroom inside Render's 512MB free container — the first
+# deploy attempt with PGlite died with an out-of-memory kill. A networked
+# Postgres drops the process to a comfortable size and makes demo data
+# durable instead of resetting on every restart.
+#
+# REDIS_URL stays unset: the in-memory cache fallback is small, and a public
+# demo doesn't need cross-instance rate limiting.
 services:
   - type: web
     name: doc-intelligence
@@ -18,8 +23,18 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
-      # Set these two in the Render dashboard — they are your own API keys
-      # and must never be committed to the repository.
+      # Defensive ceilings for a 512MB container: cap the V8 heap below the
+      # container limit so a memory spike fails one request instead of killing
+      # the process, and keep uploads small enough that pdf.js can parse them
+      # within the remaining headroom.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
+      - key: MAX_UPLOAD_MB
+        value: "10"
+      # Set these three in the Render dashboard — credentials never live in
+      # the repository.
+      - key: DATABASE_URL
+        sync: false
       - key: VOYAGE_API_KEY
         sync: false
       - key: GEMINI_API_KEY
