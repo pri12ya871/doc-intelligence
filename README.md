@@ -4,13 +4,15 @@ Upload PDFs, ask questions in plain English, get answers **grounded in citations
 
 Built by Priya Sharma.
 
+**Live demo: https://doc-intelligence-ej7z.onrender.com**
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/pri12ya871/doc-intelligence)
 
-> **Demo notes:** the demo runs on Render's free tier in local mode — the
-> instance sleeps when idle (first load can take ~50 seconds) and demo data
-> resets on restarts. Create a throwaway account, upload a text-based PDF, and
-> ask it questions. Answers are rate-limited per account because each one
-> spends real LLM quota.
+> **Demo notes:** the demo runs on Render's free tier backed by Neon Postgres.
+> The instance sleeps when idle, so the first load can take ~50 seconds — that
+> is the free tier waking up, not the app being slow. Create a throwaway
+> account, upload a text-based PDF (max 10 MB), and ask it questions. Answers
+> are rate-limited per account because each one spends real LLM quota.
 
 ---
 
