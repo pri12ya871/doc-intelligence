@@ -1,0 +1,9 @@
+node_modules/
+.env
+uploads/
+# Embedded Postgres data directory, created when running in local mode.
+data/
+*.log
+.DS_Store
+# Local assistant/tooling config
+.claude/

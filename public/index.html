@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Doc Intelligence</title>
+    <style>
+      :root {
+        --bg: #10100e;
+        --panel: #191917;
+        --border: #2e2e2a;
+        --text: #e8e6e1;
+        --muted: #9b978e;
+        --accent: #c8763f;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+      }
+      header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+      h1 { font-size: 1.15rem; margin: 0; letter-spacing: -0.01em; }
+      main {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 1.5rem;
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        gap: 1.5rem;
+      }
+      @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem;
+      }
+      h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 0.75rem; }
+      input, button, textarea, select {
+        font: inherit;
+        width: 100%;
+        padding: 0.55rem 0.7rem;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: #121210;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+      }
+      button {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #14110d;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.55; cursor: not-allowed; }
+      .doc { padding: 0.55rem 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+      .doc:last-child { border-bottom: none; }
+      .status { font-size: 0.75rem; color: var(--muted); }
+      .status.ready { color: #7fbf7f; }
+      .status.failed { color: #d97b6c; }
+      #answer { white-space: pre-wrap; min-height: 4rem; }
+      #answer cite {
+        background: rgba(200, 118, 63, 0.18);
+        color: var(--accent);
+        border-radius: 4px;
+        padding: 0 0.25rem;
+        font-style: normal;
+        font-size: 0.85em;
+      }
+      .source {
+        border-left: 2px solid var(--accent);
+        padding: 0.4rem 0.7rem;
+        margin: 0.5rem 0;
+        font-size: 0.83rem;
+        color: var(--muted);
+      }
+      .source b { color: var(--text); }
+      .hidden { display: none; }
+      .note { font-size: 0.8rem; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Doc Intelligence <span class="note">— ask your PDFs, get cited answers</span></h1>
+      <button id="logout" class="hidden" style="width:auto">Sign out</button>
+    </header>
+
+    <main>
+      <section id="authPanel" class="panel" style="grid-column: 1 / -1; max-width: 380px; margin: 0 auto">
+        <h2>Sign in</h2>
+        <input id="email" type="email" placeholder="you@example.com" autocomplete="username" />
+        <input id="password" type="password" placeholder="Password (min 8 characters)" autocomplete="current-password" />
+        <button id="loginBtn">Sign in</button>
+        <button id="registerBtn" style="background:transparent;color:var(--text);border-color:var(--border)">Create account</button>
+        <p id="authMsg" class="note"></p>
+      </section>
+
+      <section id="docsPanel" class="panel hidden">
+        <h2>Documents</h2>
+        <input id="fileInput" type="file" accept="application/pdf" />
+        <button id="uploadBtn">Upload PDF</button>
+        <p id="uploadMsg" class="note"></p>
+        <div id="docList"></div>
+      </section>
+
+      <section id="askPanel" class="panel hidden">
+        <h2>Ask a question</h2>
+        <select id="docScope"><option value="">All ready documents</option></select>
+        <textarea id="question" rows="3" placeholder="What does the contract say about termination notice?"></textarea>
+        <button id="askBtn">Ask</button>
+        <div id="answer"></div>
+        <div id="sources"></div>
+      </section>
+    </main>
+
+    <script>
+      const state = { token: localStorage.getItem('token'), docs: [] };
+      const $ = (id) => document.getElementById(id);
+
+      function authHeaders(extra = {}) {
+        return { Authorization: `Bearer ${state.token}`, ...extra };
+      }
+
+      function showApp(signedIn) {
+        $('authPanel').classList.toggle('hidden', signedIn);
+        $('docsPanel').classList.toggle('hidden', !signedIn);
+        $('askPanel').classList.toggle('hidden', !signedIn);
+        $('logout').classList.toggle('hidden', !signedIn);
+      }
+
+      async function authenticate(path) {
+        $('authMsg').textContent = 'Working…';
+        $('loginBtn').disabled = true;
+        $('registerBtn').disabled = true;
+
+        try {
+          const res = await fetch(`/api/auth/${path}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: $('email').value, password: $('password').value }),
+          });
+
+          const body = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            // "Rate limit exceeded" on its own leaves the user with no idea
+            // whether to wait seconds or an hour.
+            if (res.status === 429 && body.retry_after_seconds) {
+              const mins = Math.ceil(body.retry_after_seconds / 60);
+              $('authMsg').textContent = `Too many attempts. Try again in ${
+                mins > 1 ? `${mins} minutes` : `${body.retry_after_seconds} seconds`
+              }.`;
+              return;
+            }
+            // The API sends a `hint` when the cause is missing infrastructure
+            // rather than bad input — surfacing it saves a debugging session.
+            $('authMsg').textContent = body.hint
+              ? `${body.error} ${body.hint}`
+              : (body.error ?? `Request failed (HTTP ${res.status})`);
+            return;
+          }
+
+          state.token = body.token;
+          localStorage.setItem('token', body.token);
+          $('authMsg').textContent = '';
+          showApp(true);
+          loadDocs();
+        } catch {
+          // fetch only rejects when the request never reached the server.
+          $('authMsg').textContent =
+            'Cannot reach the server. Is it running? Start it with "npm start" in the project folder.';
+        } finally {
+          $('loginBtn').disabled = false;
+          $('registerBtn').disabled = false;
+        }
+      }
+
+      $('loginBtn').onclick = () => authenticate('login');
+      $('registerBtn').onclick = () => authenticate('register');
+      $('logout').onclick = () => {
+        localStorage.removeItem('token');
+        state.token = null;
+        showApp(false);
+      };
+
+      async function loadDocs() {
+        const res = await fetch('/api/documents', { headers: authHeaders() });
+        if (res.status === 401) return $('logout').click();
+
+        const { documents } = await res.json();
+        state.docs = documents;
+
+        $('docList').innerHTML = documents.length
+          ? documents
+              .map(
+                (d) => `<div class="doc">${escapeHtml(d.filename)}
+                  <div class="status ${d.status}">${d.status}${
+                    d.status === 'ready' ? ` · ${d.page_count} pages · ${d.chunk_count} chunks` : ''
+                  }${d.error_message ? ` — ${escapeHtml(d.error_message)}` : ''}</div></div>`,
+              )
+              .join('')
+          : '<p class="note">No documents yet.</p>';
+
+        const ready = documents.filter((d) => d.status === 'ready');
+        $('docScope').innerHTML =
+          '<option value="">All ready documents</option>' +
+          ready.map((d) => `<option value="${d.id}">${escapeHtml(d.filename)}</option>`).join('');
+
+        // Anything still processing means the worker has more to do — poll.
+        if (documents.some((d) => d.status === 'pending' || d.status === 'processing')) {
+          setTimeout(loadDocs, 2500);
+        }
+      }
+
+      $('uploadBtn').onclick = async () => {
+        const file = $('fileInput').files[0];
+        if (!file) return ($('uploadMsg').textContent = 'Choose a PDF first.');
+
+        const form = new FormData();
+        form.append('file', file);
+
+        $('uploadBtn').disabled = true;
+        $('uploadMsg').textContent = 'Uploading…';
+
+        const res = await fetch('/api/documents', { method: 'POST', headers: authHeaders(), body: form });
+        const body = await res.json();
+
+        $('uploadBtn').disabled = false;
+        $('uploadMsg').textContent = res.ok
+          ? body.deduplicated
+            ? 'Already uploaded — reusing the indexed copy.'
+            : 'Queued for indexing.'
+          : body.error ?? 'Upload failed';
+
+        loadDocs();
+      };
+
+      $('askBtn').onclick = async () => {
+        const question = $('question').value.trim();
+        if (question.length < 3) return;
+
+        $('askBtn').disabled = true;
+        $('answer').textContent = '';
+        $('sources').innerHTML = '';
+
+        const res = await fetch('/api/chat/ask', {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ question, document_id: $('docScope').value || null }),
+        });
+
+        if (!res.ok || !res.body) {
+          const body = await res.json().catch(() => ({}));
+          $('answer').textContent = body.error ?? 'Request failed';
+          $('askBtn').disabled = false;
+          return;
+        }
+
+        // SSE over fetch: EventSource cannot POST, so parse the frames by hand.
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let answerText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop() ?? '';
+
+          for (const frame of frames) {
+            const eventLine = frame.match(/^event: (.+)$/m);
+            const dataLine = frame.match(/^data: (.+)$/m);
+            if (!eventLine || !dataLine) continue;
+
+            const payload = JSON.parse(dataLine[1]);
+
+            if (eventLine[1] === 'token') {
+              answerText += payload.text;
+              $('answer').innerHTML = renderCitations(answerText);
+            } else if (eventLine[1] === 'sources') {
+              renderSources(payload.sources, payload.cached);
+            } else if (eventLine[1] === 'refusal' || eventLine[1] === 'error') {
+              const text = payload.detail
+                ? `${payload.message}: ${payload.detail}`
+                : payload.message;
+              $('answer').innerHTML += `<p class="note">${escapeHtml(text)}</p>`;
+            }
+          }
+        }
+
+        $('askBtn').disabled = false;
+      };
+
+      function renderCitations(text) {
+        return escapeHtml(text).replace(/\[(\d+)\]/g, '<cite>$1</cite>');
+      }
+
+      function renderSources(sources, cached) {
+        if (!sources.length) return;
+        $('sources').innerHTML =
+          `<h2>Sources${cached ? ' (cached answer)' : ''}</h2>` +
+          sources
+            .map(
+              (s) => `<div class="source"><b>[${s.marker}] ${escapeHtml(s.filename)}</b> · ${
+                s.page_start === s.page_end ? `page ${s.page_start}` : `pages ${s.page_start}–${s.page_end}`
+              } · similarity ${s.similarity.toFixed(3)}<br />${escapeHtml(s.excerpt)}…</div>`,
+            )
+            .join('');
+      }
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+        );
+      }
+
+      showApp(Boolean(state.token));
+      if (state.token) loadDocs();
+    </script>
+  </body>
+</html>

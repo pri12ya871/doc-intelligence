@@ -1,0 +1,26 @@
+# One-click deployment blueprint for Render (free tier).
+#
+# The app runs in local mode here: embedded Postgres (PGlite) + in-memory
+# cache, so no database or Redis service is needed. The free instance's disk
+# is ephemeral — demo data resets on every deploy or restart, which suits a
+# public demo. For durable data, set DATABASE_URL (Neon) and REDIS_URL
+# (Upstash) as environment variables instead.
+services:
+  - type: web
+    name: doc-intelligence
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node scripts/migrate.js && node src/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      # Set these two in the Render dashboard — they are your own API keys
+      # and must never be committed to the repository.
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
