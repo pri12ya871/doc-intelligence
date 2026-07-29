@@ -44,7 +44,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22+, because `npm test` passes a glob to `node --test`, and the
+          # test runner only learned to expand globs in Node 21.
+          node-version: 22
           cache: npm
 
       - run: npm install
