@@ -58,6 +58,7 @@ export const config = {
   maxUploadBytes: Number(process.env.MAX_UPLOAD_MB ?? 25) * 1024 * 1024,
   askRateLimitPerHour: Number(process.env.ASK_RATE_LIMIT_PER_HOUR ?? 60),
   loginRateLimitPer15Min: Number(process.env.LOGIN_RATE_LIMIT_PER_15MIN ?? 10),
+  demoRateLimitPerHour: Number(process.env.DEMO_RATE_LIMIT_PER_HOUR ?? 10),
 
   // Timeouts. The defaults suit hosted dependencies (Neon, Upstash), where a
   // round trip crosses the internet and a suspended database has to wake up

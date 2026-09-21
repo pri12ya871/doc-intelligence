@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { signToken } from '../middleware/auth.js';
 import { rateLimit, ipKey } from '../middleware/rateLimit.js';
 import { config } from '../config.js';
+import { createDemoUser, DEMO_TOKEN_TTL } from '../services/demo.js';
 
 export const authRouter = express.Router();
 
@@ -11,6 +12,15 @@ const loginLimiter = rateLimit({
   name: 'login',
   limit: config.loginRateLimitPer15Min,
   windowSeconds: 15 * 60,
+  keyFn: ipKey,
+});
+
+// Each demo creates an account, so it gets its own per-IP ceiling rather than
+// sharing the login budget a visitor may also need.
+const demoLimiter = rateLimit({
+  name: 'demo',
+  limit: config.demoRateLimitPerHour,
+  windowSeconds: 60 * 60,
   keyFn: ipKey,
 });
 
@@ -70,6 +80,19 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
     }
 
     res.json({ token: signToken(user), user: { id: user.id, email: user.email } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/demo', demoLimiter, async (_req, res, next) => {
+  try {
+    const { user, sampleReady } = await createDemoUser();
+    res.status(201).json({
+      token: signToken(user, { expiresIn: DEMO_TOKEN_TTL }),
+      user: { ...user, demo: true },
+      sample_ready: sampleReady,
+    });
   } catch (err) {
     next(err);
   }

@@ -1,10 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 
-export function signToken(user) {
-  return jwt.sign({ sub: String(user.id), email: user.email }, config.jwtSecret, {
-    expiresIn: config.jwtExpiresIn,
-  });
+export function signToken(user, { expiresIn = config.jwtExpiresIn } = {}) {
+  return jwt.sign({ sub: String(user.id), email: user.email }, config.jwtSecret, { expiresIn });
 }
 
 /**

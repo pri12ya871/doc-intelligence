@@ -10,9 +10,15 @@ Built by Priya Sharma.
 
 > **Demo notes:** the demo runs on Render's free tier backed by Neon Postgres.
 > The instance sleeps when idle, so the first load can take ~50 seconds — that
-> is the free tier waking up, not the app being slow. Create a throwaway
-> account, upload a text-based PDF (max 10 MB), and ask it questions. Answers
-> are rate-limited per account because each one spends real LLM quota.
+> is the free tier waking up, not the app being slow. Click **Try the demo**
+> to get a private account with a sample PDF already indexed, no signup
+> needed, then ask it questions or upload your own text-based PDF (max 10 MB).
+> Answers are rate-limited per account because each one spends real LLM quota.
+>
+> Each demo is a separate account, so visitors never see each other's uploads.
+> The sample is embedded once into a template account and copied row-for-row
+> into each new demo, so a demo costs no embedding calls. Demo tokens last a
+> day and the accounts are deleted after two (`src/services/demo.js`).
 
 ---
 

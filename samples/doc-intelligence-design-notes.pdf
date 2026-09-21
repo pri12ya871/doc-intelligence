@@ -1,0 +1,280 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 1554 >>
+stream
+BT
+/F2 18 Tf
+72 720 Td
+(Doc Intelligence: Design Notes) Tj
+ET
+BT
+/F1 11 Tf
+72 684 Td
+(Doc Intelligence answers questions about PDFs with citations that point to the exact) Tj
+ET
+BT
+/F1 11 Tf
+72 668 Td
+(page. It is a retrieval-augmented generation \(RAG\) system: the model never answers) Tj
+ET
+BT
+/F1 11 Tf
+72 652 Td
+(from memory, only from excerpts retrieved out of the documents a user has uploaded.) Tj
+ET
+BT
+/F1 11 Tf
+72 628 Td
+(Ingestion. An upload is stored and acknowledged immediately; the heavy work runs in) Tj
+ET
+BT
+/F1 11 Tf
+72 612 Td
+(the background. Text is extracted page by page, split into chunks of roughly 400) Tj
+ET
+BT
+/F1 11 Tf
+72 596 Td
+(tokens that overlap by about 60, embedded with Voyage \(voyage-3, 1024 dimensions\) and) Tj
+ET
+BT
+/F1 11 Tf
+72 580 Td
+(written to Postgres in a single transaction. A document is never marked ready while) Tj
+ET
+BT
+/F1 11 Tf
+72 564 Td
+(only part of it is embedded, because answering from partial evidence is worse than) Tj
+ET
+BT
+/F1 11 Tf
+72 548 Td
+(failing.) Tj
+ET
+BT
+/F1 11 Tf
+72 524 Td
+(Deduplication. Every upload is hashed with SHA-256. Uploading the same bytes twice,) Tj
+ET
+BT
+/F1 11 Tf
+72 508 Td
+(even under a different filename, reuses the existing document instead of paying to) Tj
+ET
+BT
+/F1 11 Tf
+72 492 Td
+(embed it again.) Tj
+ET
+BT
+/F1 11 Tf
+72 468 Td
+(Scanned PDFs contain images rather than text. They fail ingestion with a clear) Tj
+ET
+BT
+/F1 11 Tf
+72 452 Td
+(message saying OCR is needed, rather than silently producing an empty index.) Tj
+ET
+BT
+/F1 9 Tf
+294 40 Td
+(Page 1) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 1362 >>
+stream
+BT
+/F2 18 Tf
+72 720 Td
+(Retrieval and Answers) Tj
+ET
+BT
+/F1 11 Tf
+72 684 Td
+(Vectors live in Postgres through the pgvector extension, indexed with IVFFlat over) Tj
+ET
+BT
+/F1 11 Tf
+72 668 Td
+(cosine distance. Keeping vectors next to the relational data means one database, one) Tj
+ET
+BT
+/F1 11 Tf
+72 652 Td
+(backup and one transaction boundary instead of a separate vector store to keep in) Tj
+ET
+BT
+/F1 11 Tf
+72 636 Td
+(sync.) Tj
+ET
+BT
+/F1 11 Tf
+72 612 Td
+(A question is embedded with the query input type, and the eight most similar chunks) Tj
+ET
+BT
+/F1 11 Tf
+72 596 Td
+(are retrieved. Voyage encodes documents and queries with different prefixes; using) Tj
+ET
+BT
+/F1 11 Tf
+72 580 Td
+(the document type for both measurably lowers recall.) Tj
+ET
+BT
+/F1 11 Tf
+72 556 Td
+(The answer streams back over server-sent events, token by token. The model is) Tj
+ET
+BT
+/F1 11 Tf
+72 540 Td
+(instructed to cite excerpts as [1], [2] and so on, and each marker resolves to a) Tj
+ET
+BT
+/F1 11 Tf
+72 524 Td
+(filename and a page range the reader can verify.) Tj
+ET
+BT
+/F1 11 Tf
+72 500 Td
+(Identical questions over the same documents are cached for six hours. The cache key) Tj
+ET
+BT
+/F1 11 Tf
+72 484 Td
+(includes the user id, because the same question asked by two users has two different) Tj
+ET
+BT
+/F1 11 Tf
+72 468 Td
+(correct answers.) Tj
+ET
+BT
+/F1 9 Tf
+294 40 Td
+(Page 2) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 1288 >>
+stream
+BT
+/F2 18 Tf
+72 720 Td
+(Security and Limits) Tj
+ET
+BT
+/F1 11 Tf
+72 684 Td
+(Tenant isolation. Every document and chunk query filters on the authenticated user) Tj
+ET
+BT
+/F1 11 Tf
+72 668 Td
+(id. That WHERE clause is the tenant boundary, which is why the chunks table carries) Tj
+ET
+BT
+/F1 11 Tf
+72 652 Td
+(its own user_id column and index rather than joining through documents.) Tj
+ET
+BT
+/F1 11 Tf
+72 628 Td
+(Authentication uses bcrypt-hashed passwords and signed JWTs. A login for an unknown) Tj
+ET
+BT
+/F1 11 Tf
+72 612 Td
+(email still performs a bcrypt comparison, so a wrong email and a wrong password take) Tj
+ET
+BT
+/F1 11 Tf
+72 596 Td
+(the same time to answer.) Tj
+ET
+BT
+/F1 11 Tf
+72 572 Td
+(Rate limits. Asking questions is limited to 60 per user per hour, because every) Tj
+ET
+BT
+/F1 11 Tf
+72 556 Td
+(answer spends real model quota. Sign-in attempts are limited per IP address to slow) Tj
+ET
+BT
+/F1 11 Tf
+72 540 Td
+(down credential stuffing. When Redis is unavailable the limiter fails open rather) Tj
+ET
+BT
+/F1 11 Tf
+72 524 Td
+(than taking the API down.) Tj
+ET
+BT
+/F1 11 Tf
+72 500 Td
+(Demo accounts are created with one click, start with a copy of this document, and are) Tj
+ET
+BT
+/F1 11 Tf
+72 484 Td
+(deleted automatically after two days.) Tj
+ET
+BT
+/F1 9 Tf
+294 40 Td
+(Page 3) Tj
+ET
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000000326 00000 n 
+0000000462 00000 n 
+0000002068 00000 n 
+0000002204 00000 n 
+0000003618 00000 n 
+0000003755 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+5096
+%%EOF

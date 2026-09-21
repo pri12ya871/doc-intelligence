@@ -99,10 +99,13 @@
 
     <main>
       <section id="authPanel" class="panel" style="grid-column: 1 / -1; max-width: 380px; margin: 0 auto">
-        <h2>Sign in</h2>
+        <h2>Try it</h2>
+        <button id="demoBtn">Try the demo — no signup</button>
+        <p class="note">Opens a private demo account with a sample PDF loaded, ready for questions. Demo accounts are deleted after two days.</p>
+        <p class="note" style="margin-top:1.25rem">Or use your own account:</p>
         <input id="email" type="email" placeholder="you@example.com" autocomplete="username" />
         <input id="password" type="password" placeholder="Password (min 8 characters)" autocomplete="current-password" />
-        <button id="loginBtn">Sign in</button>
+        <button id="loginBtn" style="background:transparent;color:var(--text);border-color:var(--border)">Sign in</button>
         <button id="registerBtn" style="background:transparent;color:var(--text);border-color:var(--border)">Create account</button>
         <p id="authMsg" class="note"></p>
       </section>
@@ -141,9 +144,11 @@
       }
 
       async function authenticate(path) {
-        $('authMsg').textContent = 'Working…';
-        $('loginBtn').disabled = true;
-        $('registerBtn').disabled = true;
+        const authButtons = ['demoBtn', 'loginBtn', 'registerBtn'].map($);
+        // The first demo after a cold start also embeds the sample, so say
+        // what the wait is for.
+        $('authMsg').textContent = path === 'demo' ? 'Setting up your demo account…' : 'Working…';
+        authButtons.forEach((b) => (b.disabled = true));
 
         try {
           const res = await fetch(`/api/auth/${path}`, {
@@ -175,6 +180,9 @@
           state.token = body.token;
           localStorage.setItem('token', body.token);
           $('authMsg').textContent = '';
+          if (body.sample_ready) {
+            $('question').value = "How does the app keep one user's documents private from another's?";
+          }
           showApp(true);
           loadDocs();
         } catch {
@@ -182,11 +190,11 @@
           $('authMsg').textContent =
             'Cannot reach the server. Is it running? Start it with "npm start" in the project folder.';
         } finally {
-          $('loginBtn').disabled = false;
-          $('registerBtn').disabled = false;
+          authButtons.forEach((b) => (b.disabled = false));
         }
       }
 
+      $('demoBtn').onclick = () => authenticate('demo');
       $('loginBtn').onclick = () => authenticate('login');
       $('registerBtn').onclick = () => authenticate('register');
       $('logout').onclick = () => {

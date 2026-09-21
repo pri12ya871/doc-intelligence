@@ -47,7 +47,11 @@ async function createDriver() {
     return {
       kind: 'pglite',
       description: `PGlite (embedded Postgres) at ${path.relative(process.cwd(), LOCAL_DB_DIR)}`,
-      query: (text, params) => db.query(text, params),
+      // PGlite reports affectedRows; callers are written against pg's rowCount.
+      query: async (text, params) => {
+        const result = await db.query(text, params);
+        return { ...result, rowCount: result.affectedRows ?? result.rows.length };
+      },
       exec: (sql) => db.exec(sql),
       transaction: (fn) => db.transaction((tx) => fn({ query: (t, p) => tx.query(t, p) })),
       close: () => db.close(),
